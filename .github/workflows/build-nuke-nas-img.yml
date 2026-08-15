@@ -15,37 +15,56 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Extract project
+
+      - name: Extract Nuke NAS project
         run: |
-          set -eux
+          set -euxo pipefail
+          rm -rf project
           mkdir project
           unzip -q nuke-nas-img.zip -d project
-          find project -maxdepth 5 -type f -print | sort | head -300
-      - name: Install dependencies
+          PROJECT_DIR=$(find project -type f -name pigen-config -printf '%h\n' | head -1)
+          test -n "$PROJECT_DIR"
+          echo "PIGEN_PROJECT=$PROJECT_DIR" >> "$GITHUB_ENV"
+          find "$PROJECT_DIR" -maxdepth 4 -type f -print | sort
+
+      - name: Install Pi-gen dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xz-utils zip unzip qemu-user-static binfmt-support parted kpartx dosfstools e2fsprogs
-      - name: Build image
-        shell: bash
+          sudo apt-get install -y git coreutils quilt parted qemu-user-static debootstrap zerofree zip dosfstools libarchive-tools libcap2-bin rsync xz-utils kpartx
+
+      - name: Get Pi-gen
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
+
+      - name: Build image with Pi-gen
+        run: |
+          set -euxo pipefail
+          rm -rf pigen/work pigen/deploy
+          cp -a "$PIGEN_PROJECT"/. pigen/
+          # The project config belongs to the Pi-gen root; disable interactive prompts.
+          if grep -q '^IMG_NAME=' pigen/config; then
+            sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config
+          else
+            printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config
+          fi
+          printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config
+          sudo -E ./pigen/build.sh
+
+      - name: Find generated image
         run: |
           set -euxo pipefail
           mkdir -p out
-          BUILDER=""
-          while IFS= read -r f; do
-            if grep -Eqi 'build.*(img|image)|raspberry.*pi|\.img' "$f"; then BUILDER="$f"; break; fi
-          done < <(find project -type f \( -name '*.sh' -o -name '*.py' \) | sort)
-          if [ -n "$BUILDER" ]; then
-            echo "Running builder: $BUILDER"
-            if [[ "$BUILDER" == *.py ]]; then python3 "$BUILDER"; else chmod +x "$BUILDER"; "$BUILDER"; fi
+          IMG=$(find pigen/deploy -maxdepth 1 -type f \( -name '*.img' -o -name '*.img.xz' \) | head -1)
+          test -n "$IMG"
+          if [[ "$IMG" == *.xz ]]; then
+            cp "$IMG" out/uwu21-rpi.img.xz
+          else
+            xz -T0 -9 -c "$IMG" > out/uwu21-rpi.img.xz
           fi
-          FOUND=$(find project . -type f -name '*.img' -not -path './out/*' | head -1 || true)
-          if [ -z "$FOUND" ]; then
-            echo 'ERROR: No .img was produced. The ZIP needs an image builder or an existing .img.'
-            exit 1
-          fi
-          cp "$FOUND" out/uwu21-rpi.img
-          xz -T0 -9 out/uwu21-rpi.img
-      - name: Upload IMG
+          ls -lh out/uwu21-rpi.img.xz
+
+      - name: Upload Raspberry Pi image
         uses: actions/upload-artifact@v4
         with:
           name: uwu21-rpi-image
