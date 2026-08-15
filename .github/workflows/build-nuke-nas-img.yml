@@ -14,7 +14,7 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Extract project
         run: |
@@ -43,14 +43,8 @@ jobs:
           cp -a "$PIGEN_PROJECT/stage-nuke" pigen/
           if [ -f "$PIGEN_PROJECT/EXPORT_IMAGE" ]; then cp "$PIGEN_PROJECT/EXPORT_IMAGE" pigen/; fi
           if [ -f "$PIGEN_PROJECT/prerun.sh" ]; then cp "$PIGEN_PROJECT/prerun.sh" pigen/; chmod +x pigen/prerun.sh; fi
-          if grep -q '^IMG_NAME=' pigen/config; then
-            sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config
-          else
-            printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config
-          fi
-          if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then
-            printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config
-          fi
+          if grep -q '^IMG_NAME=' pigen/config; then sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config; else printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config; fi
+          if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config; fi
           test -f pigen/config
           test -d pigen/stage-nuke
 
@@ -73,11 +67,7 @@ jobs:
           mkdir -p out
           IMG=$(find pigen/deploy -maxdepth 1 -type f \( -name '*.img' -o -name '*.img.xz' \) | head -1)
           test -n "$IMG"
-          if [[ "$IMG" == *.xz ]]; then
-            cp "$IMG" out/uwu21-rpi.img.xz
-          else
-            xz -T0 -9 -c "$IMG" > out/uwu21-rpi.img.xz
-          fi
+          if [[ "$IMG" == *.xz ]]; then cp "$IMG" out/uwu21-rpi.img.xz; else xz -T0 -9 -c "$IMG" > out/uwu21-rpi.img.xz; fi
           ls -lh out/uwu21-rpi.img.xz
 
       - name: Upload IMG
