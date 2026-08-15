@@ -30,7 +30,6 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          sudo apt-get remove -y qemu-user-binfmt qemu-user-static || true
           sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-static debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
           sudo modprobe binfmt_misc || true
           test -x /usr/bin/qemu-arm-static
@@ -38,10 +37,10 @@ jobs:
       - name: Register QEMU binfmt
         run: |
           set -euxo pipefail
-          sudo mkdir -p /usr/lib/binfmt.d
-          printf ':qemu-arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff:/usr/bin/qemu-arm-static:F\n' | sudo tee /usr/lib/binfmt.d/qemu-arm.conf >/dev/null
-          sudo systemctl restart systemd-binfmt.service || true
-          sudo sh -c 'echo 1 > /proc/sys/fs/binfmt_misc/status' || true
+          docker run --privileged --rm tonistiigi/binfmt --install arm,arm64
+          docker run --privileged --rm tonistiigi/binfmt --version
+          test -e /proc/sys/fs/binfmt_misc/qemu-arm
+          test -e /proc/sys/fs/binfmt_misc/qemu-aarch64
 
       - name: Clone compatible Pi-gen branch
         run: |
@@ -74,13 +73,15 @@ jobs:
           find stage-nuke -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
           grep -E '^(RELEASE|IMG_NAME|STAGE_LIST|ARCH|DEPLOY_COMPRESSION)=' config || true
 
-      - name: Verify QEMU
+      - name: Verify QEMU and binfmt
         run: |
           set -euxo pipefail
           dpkg -l qemu-user-static
           test -x /usr/bin/qemu-arm-static
           test -x /usr/bin/qemu-aarch64-static
           /usr/bin/qemu-arm-static --version
+          cat /proc/sys/fs/binfmt_misc/qemu-arm
+          cat /proc/sys/fs/binfmt_misc/qemu-aarch64
 
       - name: Build with Pi-gen
         run: |
