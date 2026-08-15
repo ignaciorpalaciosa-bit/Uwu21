@@ -33,7 +33,6 @@ jobs:
           sudo apt-get remove -y qemu-user-static || true
           sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
           sudo modprobe binfmt_misc || true
-          sudo update-binfmts --enable || true
 
       - name: Clone compatible Pi-gen branch
         run: |
@@ -47,8 +46,6 @@ jobs:
           cp -a "$PIGEN_PROJECT/stage-nuke" pigen/
           if [ -f "$PIGEN_PROJECT/EXPORT_IMAGE" ]; then cp "$PIGEN_PROJECT/EXPORT_IMAGE" pigen/; fi
           if [ -f "$PIGEN_PROJECT/prerun.sh" ]; then cp "$PIGEN_PROJECT/prerun.sh" pigen/; chmod +x pigen/prerun.sh; fi
-          # This project was failing because master expects Trixie while the
-          # custom configuration is intended for the Bookworm pi-gen branch.
           if grep -q '^RELEASE=' pigen/config; then sed -i 's/^RELEASE=.*/RELEASE=bookworm/' pigen/config; else printf '\nRELEASE=bookworm\n' >> pigen/config; fi
           if grep -q '^IMG_NAME=' pigen/config; then sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config; else printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config; fi
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config; fi
@@ -72,8 +69,8 @@ jobs:
         run: |
           set -euxo pipefail
           dpkg -l qemu-user-binfmt
-          update-binfmts --display qemu-arm || true
           test -x /usr/bin/qemu-arm-static
+          test -x /usr/bin/qemu-aarch64-static || true
 
       - name: Build with Pi-gen
         run: |
