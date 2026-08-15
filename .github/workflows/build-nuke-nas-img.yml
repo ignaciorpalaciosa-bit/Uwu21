@@ -30,13 +30,12 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          # qemu-user-binfmt conflicts with qemu-user-static on Ubuntu 24.04.
-          # Remove it first in case the runner has it installed, then install only static QEMU.
-          sudo apt-get remove -y qemu-user-binfmt || true
-          sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-static debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
+          # Pi-gen explicitly requires qemu-user-binfmt on Debian/Ubuntu.
+          # Do not install qemu-user-static because the two packages conflict on Ubuntu 24.04.
+          sudo apt-get remove -y qemu-user-static || true
+          sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
           sudo modprobe binfmt_misc || true
-          sudo update-binfmts --enable qemu-aarch64 || true
-          sudo update-binfmts --enable qemu-arm || true
+          sudo update-binfmts --enable || true
 
       - name: Clone Pi-gen
         run: git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
@@ -59,6 +58,13 @@ jobs:
           cd pigen
           bash -n build.sh
           find stage-nuke -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
+
+      - name: Verify QEMU binfmt
+        run: |
+          set -euxo pipefail
+          dpkg -l qemu-user-binfmt
+          update-binfmts --display qemu-aarch64 || true
+          update-binfmts --display qemu-arm || true
 
       - name: Build with Pi-gen
         run: |
