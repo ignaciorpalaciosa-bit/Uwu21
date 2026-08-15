@@ -69,8 +69,10 @@ jobs:
         run: |
           set -euxo pipefail
           dpkg -l qemu-user-binfmt
-          test -x /usr/bin/qemu-arm-static
-          test -x /usr/bin/qemu-aarch64-static || true
+          test -x /usr/bin/qemu-arm
+          test -x /usr/bin/qemu-aarch64
+          if [ -e /proc/sys/fs/binfmt_misc/status ]; then cat /proc/sys/fs/binfmt_misc/status; fi
+          if [ -e /proc/sys/fs/binfmt_misc/qemu-arm ]; then cat /proc/sys/fs/binfmt_misc/qemu-arm; fi
 
       - name: Build with Pi-gen
         run: |
