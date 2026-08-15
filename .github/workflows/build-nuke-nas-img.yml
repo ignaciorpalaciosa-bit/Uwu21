@@ -30,9 +30,18 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          sudo apt-get remove -y qemu-user-static || true
-          sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
+          sudo apt-get remove -y qemu-user-binfmt qemu-user-static || true
+          sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-static debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
           sudo modprobe binfmt_misc || true
+          test -x /usr/bin/qemu-arm-static
+
+      - name: Register QEMU binfmt
+        run: |
+          set -euxo pipefail
+          sudo mkdir -p /usr/lib/binfmt.d
+          printf ':qemu-arm:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00:\xff\xff\xff\xff\xff\xff\xff\x00\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff:/usr/bin/qemu-arm-static:F\n' | sudo tee /usr/lib/binfmt.d/qemu-arm.conf >/dev/null
+          sudo systemctl restart systemd-binfmt.service || true
+          sudo sh -c 'echo 1 > /proc/sys/fs/binfmt_misc/status' || true
 
       - name: Clone compatible Pi-gen branch
         run: |
@@ -65,14 +74,13 @@ jobs:
           find stage-nuke -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
           grep -E '^(RELEASE|IMG_NAME|STAGE_LIST|ARCH|DEPLOY_COMPRESSION)=' config || true
 
-      - name: Verify QEMU binfmt
+      - name: Verify QEMU
         run: |
           set -euxo pipefail
-          dpkg -l qemu-user-binfmt
-          test -x /usr/bin/qemu-arm
-          test -x /usr/bin/qemu-aarch64
-          if [ -e /proc/sys/fs/binfmt_misc/status ]; then cat /proc/sys/fs/binfmt_misc/status; fi
-          if [ -e /proc/sys/fs/binfmt_misc/qemu-arm ]; then cat /proc/sys/fs/binfmt_misc/qemu-arm; fi
+          dpkg -l qemu-user-static
+          test -x /usr/bin/qemu-arm-static
+          test -x /usr/bin/qemu-aarch64-static
+          /usr/bin/qemu-arm-static --version
 
       - name: Build with Pi-gen
         run: |
