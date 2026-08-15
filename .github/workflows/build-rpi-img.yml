@@ -1,0 +1,67 @@
+name: Build Raspberry Pi IMG
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'image/**'
+      - '.github/workflows/build-rpi-img.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install image tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils kpartx qemu-user-static binfmt-support
+
+      - name: Build Raspberry Pi image
+        run: |
+          set -eux
+          mkdir -p out
+
+          if [ -f image/rootfs.tar.xz ]; then
+            echo 'Creating a Raspberry Pi disk image from image/rootfs.tar.xz'
+            ROOTFS=image/rootfs.tar.xz
+            SIZE_MB=4096
+            IMG=out/uwu21-rpi.img
+            truncate -s "${SIZE_MB}M" "$IMG"
+            parted -s "$IMG" mklabel msdos
+            parted -s "$IMG" mkpart primary fat32 4MiB 260MiB
+            parted -s "$IMG" set 1 boot on
+            parted -s "$IMG" mkpart primary ext4 260MiB 100%
+
+            LOOP=$(sudo losetup --find --show --partscan "$IMG")
+            trap 'sudo losetup -d "$LOOP" || true' EXIT
+            sudo mkfs.vfat -F 32 -n BOOT "${LOOP}p1"
+            sudo mkfs.ext4 -F -L rootfs "${LOOP}p2"
+
+            mkdir -p mnt/boot mnt/root
+            sudo mount "${LOOP}p1" mnt/boot
+            sudo mount "${LOOP}p2" mnt/root
+            sudo tar -xJf "$ROOTFS" -C mnt/root
+
+            if [ -d image/boot ]; then sudo cp -a image/boot/. mnt/boot/; fi
+            sudo sync
+            sudo umount mnt/boot mnt/root
+          else
+            echo 'No image/rootfs.tar.xz found.'
+            echo 'Add a Raspberry Pi root filesystem as image/rootfs.tar.xz, then run this workflow again.'
+            exit 1
+          fi
+
+          xz -T0 -9 out/uwu21-rpi.img
+
+      - name: Upload IMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: uwu21-rpi-image
+          path: out/uwu21-rpi.img.xz
+          retention-days: 14
