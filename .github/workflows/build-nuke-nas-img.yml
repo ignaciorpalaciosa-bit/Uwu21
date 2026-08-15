@@ -38,7 +38,7 @@ jobs:
       - name: Clone compatible Pi-gen branch
         run: |
           set -euxo pipefail
-          git clone --depth 1 --branch master https://github.com/RPi-Distro/pi-gen.git pigen
+          git clone --depth 1 --branch bookworm https://github.com/RPi-Distro/pi-gen.git pigen
 
       - name: Install Nuke NAS configuration
         run: |
@@ -47,8 +47,9 @@ jobs:
           cp -a "$PIGEN_PROJECT/stage-nuke" pigen/
           if [ -f "$PIGEN_PROJECT/EXPORT_IMAGE" ]; then cp "$PIGEN_PROJECT/EXPORT_IMAGE" pigen/; fi
           if [ -f "$PIGEN_PROJECT/prerun.sh" ]; then cp "$PIGEN_PROJECT/prerun.sh" pigen/; chmod +x pigen/prerun.sh; fi
-          # Keep pi-gen's branch and Debian release consistent.
-          if grep -q '^RELEASE=' pigen/config; then sed -i 's/^RELEASE=.*/RELEASE=trixie/' pigen/config; else printf '\nRELEASE=trixie\n' >> pigen/config; fi
+          # This project was failing because master expects Trixie while the
+          # custom configuration is intended for the Bookworm pi-gen branch.
+          if grep -q '^RELEASE=' pigen/config; then sed -i 's/^RELEASE=.*/RELEASE=bookworm/' pigen/config; else printf '\nRELEASE=bookworm\n' >> pigen/config; fi
           if grep -q '^IMG_NAME=' pigen/config; then sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config; else printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config; fi
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config; fi
           sed -i '/^STAGE_LIST=/d' pigen/config
