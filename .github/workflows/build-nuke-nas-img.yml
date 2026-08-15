@@ -30,8 +30,6 @@ jobs:
         run: |
           set -euxo pipefail
           sudo apt-get update
-          # Pi-gen explicitly requires qemu-user-binfmt on Debian/Ubuntu.
-          # Do not install qemu-user-static because the two packages conflict on Ubuntu 24.04.
           sudo apt-get remove -y qemu-user-static || true
           sudo apt-get install -y --no-install-recommends coreutils quilt parted qemu-user-binfmt debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
           sudo modprobe binfmt_misc || true
@@ -49,7 +47,14 @@ jobs:
           if [ -f "$PIGEN_PROJECT/prerun.sh" ]; then cp "$PIGEN_PROJECT/prerun.sh" pigen/; chmod +x pigen/prerun.sh; fi
           if grep -q '^IMG_NAME=' pigen/config; then sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config; else printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config; fi
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config; fi
+          # stage-nuke is a custom final stage; Pi-gen still needs the
+          # standard bootstrap/minimal stages to create the initial rootfs.
+          sed -i '/^STAGE_LIST=/d' pigen/config
+          printf '\nSTAGE_LIST="stage0 stage1 stage2 stage-nuke"\n' >> pigen/config
           test -f pigen/config
+          test -d pigen/stage0
+          test -d pigen/stage1
+          test -d pigen/stage2
           test -d pigen/stage-nuke
 
       - name: Validate Pi-gen configuration
