@@ -16,7 +16,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Nuke NAS project
+      - name: Extract project
         run: |
           set -euxo pipefail
           rm -rf project
@@ -25,33 +25,33 @@ jobs:
           PROJECT_DIR=$(find project -type f -name pigen-config -printf '%h\n' | head -1)
           test -n "$PROJECT_DIR"
           echo "PIGEN_PROJECT=$PROJECT_DIR" >> "$GITHUB_ENV"
-          find "$PROJECT_DIR" -maxdepth 4 -type f -print | sort
 
       - name: Install Pi-gen dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git coreutils quilt parted qemu-user-static debootstrap zerofree zip dosfstools libarchive-tools libcap2-bin rsync xz-utils kpartx
+          sudo apt-get install -y git quilt parted qemu-user-static debootstrap zerofree zip dosfstools libarchive-tools libcap2-bin rsync xz-utils kpartx
 
-      - name: Get Pi-gen
+      - name: Clone Pi-gen
+        run: git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
+
+      - name: Install project into Pi-gen
         run: |
           set -euxo pipefail
-          git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
-
-      - name: Build image with Pi-gen
-        run: |
-          set -euxo pipefail
-          rm -rf pigen/work pigen/deploy
           cp -a "$PIGEN_PROJECT"/. pigen/
-          # The project config belongs to the Pi-gen root; disable interactive prompts.
-          if grep -q '^IMG_NAME=' pigen/config; then
-            sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config
-          else
+          test -f pigen/config
+          # Use the project's own configuration; only set the output name if absent.
+          if ! grep -q '^IMG_NAME=' pigen/config; then
             printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config
           fi
           printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config
-          sudo -E ./pigen/build.sh
 
-      - name: Find generated image
+      - name: Build with Pi-gen
+        run: |
+          set -euxo pipefail
+          cd pigen
+          sudo ./build.sh
+
+      - name: Collect image
         run: |
           set -euxo pipefail
           mkdir -p out
@@ -64,7 +64,7 @@ jobs:
           fi
           ls -lh out/uwu21-rpi.img.xz
 
-      - name: Upload Raspberry Pi image
+      - name: Upload IMG
         uses: actions/upload-artifact@v4
         with:
           name: uwu21-rpi-image
