@@ -51,12 +51,15 @@ jobs:
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then
             printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config
           fi
-          echo '--- pi-gen config ---'
-          cat pigen/config
-          echo '--- custom stage ---'
-          find pigen/stage-nuke -maxdepth 4 -type f -print | sort
           test -f pigen/config
           test -d pigen/stage-nuke
+
+      - name: Validate Pi-gen configuration
+        run: |
+          set -euxo pipefail
+          cd pigen
+          bash -n build.sh
+          find stage-nuke -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
 
       - name: Build with Pi-gen
         run: |
