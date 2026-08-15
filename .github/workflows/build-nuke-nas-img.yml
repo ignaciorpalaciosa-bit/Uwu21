@@ -29,7 +29,9 @@ jobs:
       - name: Install Pi-gen dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y git quilt parted qemu-user-static debootstrap zerofree zip dosfstools libarchive-tools libcap2-bin rsync xz-utils kpartx
+          sudo apt-get install -y coreutils quilt parted qemu-user-static qemu-user-binfmt debootstrap zerofree zip dosfstools e2fsprogs libarchive-tools libcap2-bin grep rsync xz-utils file git curl bc gpg pigz xxd arch-test bmap-tools kmod
+          sudo modprobe binfmt_misc || true
+          sudo update-binfmts --enable || true
 
       - name: Clone Pi-gen
         run: git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
@@ -37,8 +39,6 @@ jobs:
       - name: Install Nuke NAS configuration
         run: |
           set -euxo pipefail
-          # The uploaded project calls its Pi-gen configuration pigen-config.
-          # Pi-gen expects the file to be named config at its root.
           cp "$PIGEN_PROJECT/pigen-config" pigen/config
           cp -a "$PIGEN_PROJECT/stage-nuke" pigen/
           if [ -f "$PIGEN_PROJECT/EXPORT_IMAGE" ]; then cp "$PIGEN_PROJECT/EXPORT_IMAGE" pigen/; fi
@@ -51,6 +51,10 @@ jobs:
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then
             printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config
           fi
+          echo '--- pi-gen config ---'
+          cat pigen/config
+          echo '--- custom stage ---'
+          find pigen/stage-nuke -maxdepth 4 -type f -print | sort
           test -f pigen/config
           test -d pigen/stage-nuke
 
@@ -58,7 +62,7 @@ jobs:
         run: |
           set -euxo pipefail
           cd pigen
-          sudo ./build.sh
+          sudo -E ./build.sh
 
       - name: Collect image
         run: |
