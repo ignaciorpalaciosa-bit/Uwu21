@@ -1,0 +1,53 @@
+name: Build Nuke NAS Raspberry Pi IMG
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'nuke-nas-img.zip'
+      - '.github/workflows/build-nuke-nas-img.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Extract project
+        run: |
+          set -eux
+          mkdir project
+          unzip -q nuke-nas-img.zip -d project
+          find project -maxdepth 5 -type f -print | sort | head -300
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xz-utils zip unzip qemu-user-static binfmt-support parted kpartx dosfstools e2fsprogs
+      - name: Build image
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          BUILDER=""
+          while IFS= read -r f; do
+            if grep -Eqi 'build.*(img|image)|raspberry.*pi|\.img' "$f"; then BUILDER="$f"; break; fi
+          done < <(find project -type f \( -name '*.sh' -o -name '*.py' \) | sort)
+          if [ -n "$BUILDER" ]; then
+            echo "Running builder: $BUILDER"
+            if [[ "$BUILDER" == *.py ]]; then python3 "$BUILDER"; else chmod +x "$BUILDER"; "$BUILDER"; fi
+          fi
+          FOUND=$(find project . -type f -name '*.img' -not -path './out/*' | head -1 || true)
+          if [ -z "$FOUND" ]; then
+            echo 'ERROR: No .img was produced. The ZIP needs an image builder or an existing .img.'
+            exit 1
+          fi
+          cp "$FOUND" out/uwu21-rpi.img
+          xz -T0 -9 out/uwu21-rpi.img
+      - name: Upload IMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: uwu21-rpi-image
+          path: out/uwu21-rpi.img.xz
+          retention-days: 14
