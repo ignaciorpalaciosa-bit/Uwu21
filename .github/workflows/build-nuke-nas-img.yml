@@ -35,8 +35,10 @@ jobs:
           sudo modprobe binfmt_misc || true
           sudo update-binfmts --enable || true
 
-      - name: Clone Pi-gen
-        run: git clone --depth 1 https://github.com/RPi-Distro/pi-gen.git pigen
+      - name: Clone compatible Pi-gen branch
+        run: |
+          set -euxo pipefail
+          git clone --depth 1 --branch master https://github.com/RPi-Distro/pi-gen.git pigen
 
       - name: Install Nuke NAS configuration
         run: |
@@ -45,10 +47,10 @@ jobs:
           cp -a "$PIGEN_PROJECT/stage-nuke" pigen/
           if [ -f "$PIGEN_PROJECT/EXPORT_IMAGE" ]; then cp "$PIGEN_PROJECT/EXPORT_IMAGE" pigen/; fi
           if [ -f "$PIGEN_PROJECT/prerun.sh" ]; then cp "$PIGEN_PROJECT/prerun.sh" pigen/; chmod +x pigen/prerun.sh; fi
+          # Keep pi-gen's branch and Debian release consistent.
+          if grep -q '^RELEASE=' pigen/config; then sed -i 's/^RELEASE=.*/RELEASE=trixie/' pigen/config; else printf '\nRELEASE=trixie\n' >> pigen/config; fi
           if grep -q '^IMG_NAME=' pigen/config; then sed -i 's/^IMG_NAME=.*/IMG_NAME=uwu21-rpi/' pigen/config; else printf '\nIMG_NAME=uwu21-rpi\n' >> pigen/config; fi
           if ! grep -q '^DEPLOY_COMPRESSION=' pigen/config; then printf '\nDEPLOY_COMPRESSION=xz\n' >> pigen/config; fi
-          # stage-nuke is a custom final stage; Pi-gen still needs the
-          # standard bootstrap/minimal stages to create the initial rootfs.
           sed -i '/^STAGE_LIST=/d' pigen/config
           printf '\nSTAGE_LIST="stage0 stage1 stage2 stage-nuke"\n' >> pigen/config
           test -f pigen/config
@@ -63,13 +65,14 @@ jobs:
           cd pigen
           bash -n build.sh
           find stage-nuke -type f -name '*.sh' -print0 | while IFS= read -r -d '' f; do bash -n "$f"; done
+          grep -E '^(RELEASE|IMG_NAME|STAGE_LIST|ARCH|DEPLOY_COMPRESSION)=' config || true
 
       - name: Verify QEMU binfmt
         run: |
           set -euxo pipefail
           dpkg -l qemu-user-binfmt
-          update-binfmts --display qemu-aarch64 || true
           update-binfmts --display qemu-arm || true
+          test -x /usr/bin/qemu-arm-static
 
       - name: Build with Pi-gen
         run: |
